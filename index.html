@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+  <title>WallNote</title>
+  <link rel="stylesheet" href="mdb/css/mdb.min.css" />
+</head>
+
+<script>
+  let focusColor = "rgb(64,81,181)";
+  let blurColor = "rgb(189,189,189)";
+</script>
+
+<body class="bg-transparent" id="body">
+  <!-- Start your project here-->
+  <div onmouseenter="showOpenAndClose()" onmouseout="hideOpenAndClose()" id="cap">
+    <div style="height:35px; cursor: move;" id="drag" onmouseup="moveSave()"></div>
+    <span style="position:absolute; top:14px; right:40px; cursor:pointer; display:none; font-size: small;"
+      onclick="changeOpen()" id="auto-manual">A</span>
+    <span style="position:absolute; top:10px; right:2px; cursor:pointer;display:none;" onclick="closeNote()"
+      id="close">×</span>
+  </div>
+  <div class="form-outline" id="NoteFrame" style="margin-right: 2px;">
+    <textarea class="form-control" style="display:none;" id="tool"></textarea>
+    <div spellcheck="false" onkeyup="check(this)" id="NoteArea"></div>
+    <label class="form-label" for="NoteArea">WallNote</label>
+  </div>
+
+  <link rel="stylesheet" href="quill/quill.bubble.css">
+
+  <script src="quill/quill.js"></script>
+
+  <!-- End your project here-->
+  <!-- MDB -->
+  <script type="text/javascript" src="mdb/js/mdb.min.js"></script>
+</body>
+<script>
+  var drag = require('electron-drag');
+  var clear = drag('#drag');
+
+  var remote = require('electron').remote;
+
+  let { ipcRenderer } = require('electron');
+  let pathName = document.location.pathname;
+  let rootPath = pathName.substr(1, pathName.search(/index.html/g) - 1)
+
+  function moveSave() {
+    blur()
+  }
+
+  function focus() {
+    let focusColor = "rgb(64,81,181)";
+    let t = document.getElementById("tool");
+    let evt = document.createEvent('HTMLEvents');
+    evt.initEvent('input', true, true);
+    t.dispatchEvent(evt);
+    document.getElementsByClassName("form-notch")[0].childNodes.forEach((item) => {
+      item.style.borderColor = focusColor;
+    })
+    document.getElementsByClassName("form-label")[0].style.color = focusColor;
+    document.getElementById("tool").classList.add("active");
+  }
+
+  function blur() {
+    let blurColor = "rgb(189,189,189)";
+    document.getElementsByClassName("form-notch")[0].childNodes.forEach((item) => {
+      item.style.borderColor = blurColor;
+    })
+    document.getElementsByClassName("form-label")[0].style.color = blurColor;
+    let flag = document.getElementsByClassName("ql-blank").length
+
+    if (flag) {
+      document.getElementById("tool")
+      document.getElementById("tool").classList.remove("active");
+    }
+    winBounds = remote.getCurrentWindow().getBounds();
+    let content = {
+      "Note": document.getElementsByClassName("ql-editor")[0].innerHTML,
+      "width": winBounds.width,
+      "height": winBounds.height,
+      "x": winBounds.x,
+      "y": winBounds.y,
+      "mode": document.getElementById("auto-manual").innerText,
+    };
+    var fs = require('fs').writeFile(rootPath + 'record.json', JSON.stringify(content), (error) => {
+      if (error) {
+        alert("Error!");
+      }
+    });
+  }
+
+  function check(element) {
+    let body = document.getElementById("body");
+    ipcRenderer.send('resize', { 'width': window.innerWidth, 'height': body.offsetHeight });
+  };
+
+  function closeNote() {
+    ipcRenderer.send('close');
+  }
+
+  function showOpenAndClose() {
+    let close = document.getElementById("close");
+    close.style.display = "block";
+    close.style.color = blurColor;
+    let open = document.getElementById("auto-manual");
+    open.style.display = "block";
+    open.style.color = blurColor;
+  }
+
+  function hideOpenAndClose() {
+    if (!document.getElementById("cap").matches(":hover")) {
+      let close = document.getElementById("close");
+      close.style.display = "none";
+      let open = document.getElementById("auto-manual");
+      open.style.display = "none";
+    }
+  }
+
+  function changeOpen() {
+    let open = document.getElementById("auto-manual");
+    if (open.innerText == "M") { //manual
+      open.innerText = "A";
+      ipcRenderer.send('open', { "mode": "A" });
+    }
+    else {
+      open.innerText = "M";
+      ipcRenderer.send('open', { "mode": "M" });
+    }
+    blur();
+  }
+
+</script>
+
+<script>
+  var toolbarOptions = [['bold', 'italic', 'image', { 'color': [] }, { 'background': [] }, { 'align': [] }, { size: [false, 'large'] }]];
+
+  var quill = new Quill('#NoteArea', {
+    theme: 'bubble',   // Specify theme in configuration
+    modules: {
+      toolbar: toolbarOptions,
+    }
+  });
+  quill.container.addEventListener('focusin', () => {
+    focus();
+  });
+  quill.container.addEventListener('focusout', () => {
+    blur();
+  });
+  quill.container.classList.add("form-control")
+
+  function load() {
+    require('fs').readFile(rootPath + 'record.json', (error, result) => {
+      if (!error) {
+        result = JSON.parse(result);
+        document.getElementsByClassName("ql-editor")[0].innerHTML = result.Note;
+        document.getElementById("auto-manual").innerText = result.mode;
+        if (result.Note != "<p><br></p>") {
+          document.getElementById("tool").classList.add("active");
+          document.getElementsByClassName("form-label")[0].style.color = blurColor;
+        }
+      }
+    });
+  }
+
+  load();
+</script>
+
+</html>
